@@ -3,11 +3,12 @@
 
 ## Before anything else, please read this
 
-This is **very outdated** software, writen two decades ago to scratch an itch. It's
-not supported and pretty much orphaned. I decided to make it available on
-github as there's some people who are still using it, but I have no plans to
-provide any updates or create new versions. Twenty plus years is a long time in
-this industry and I'd be surprised if it works out of the box at all.
+This is **very outdated** software, writen two decades ago to scratch an itch.
+It's not supported and should be considered orphaned. I decided to make it
+available on github for archaeological purposes, and for the few people who are
+still using it. There are no plans to provide any fixes or create new versions.
+Twenty plus years is a long time in this industry and I'd be surprised if it
+works out of the box at all.
 
 ## Introduction
 
@@ -159,37 +160,40 @@ hostname:plugin:plugin_options:label:angel_options
 
 Where:
 
-#### hostname
+**hostname**
 
-Name of the host to be checked. This host must be locatable from the computer where angel is running.
+   Name of the host to be checked. This host must be locatable from the
+   computer where angel is running.
 
-#### plugin
-The plugin name. Each plugin does a different thing and require different
-`plugin_options` (see next definition).
+**plugin**
 
-#### plugin_options
+   The plugin name. Each plugin does a different thing and require different
+   `plugin_options` (see next definition).
 
-These options are passed directly to the plugin. You must check the plugin
-documentation, since each plugin requires specific options.
+**plugin_options**
 
-#### label
+   These options are passed directly to the plugin. You must check the plugin
+   documentation, since each plugin requires specific options.
 
-Angel always creates a table containing hostnames in the rows and labels in the
-columns. But what is a "label"? Usually a label is a service. That's it. I
-called it "label" just because it can be any string you wish. Internally, the
-program will group using the pair hostname/label. For instance, you may choose
-to label your http column as "Web" to make it easier for non-computer people to
-understand the program output. Which service is effectively checked depends on
-what you pass to the plugin using the `plugin_options` field.
+**label**
 
-#### angel_options
+   Angel always creates a table containing hostnames in the rows and labels in
+   the columns. But what is a "label"? Usually a label is a service. That's it.
+   I called it "label" just because it can be any string you wish. Internally,
+   the program will group using the pair hostname/label. For instance, you may
+   choose to label your http column as "Web" to make it easier for non-computer
+   people to understand the program output. Which service is effectively
+   checked depends on what you pass to the plugin using the `plugin_options`
+   field.
 
-These options control some aspects of the core Angel script. They are not
-related to the plugins and apply equally to all plugins. Currently, the valid
-options are "alertyellow","alertred","alertblack". These options will cause
-Angel to generate javascript code which in turn will open an auxiliary window
-in your browser, warning you when a yellow, red or black condition happen,
-respectively. Options are separated with a "!" (bang) sign.
+**angel_options**
+
+   These options control some aspects of the core Angel script. They are not
+   related to the plugins and apply equally to all plugins. Currently, the
+   valid options are "alertyellow","alertred","alertblack". These options will
+   cause Angel to generate javascript code which in turn will open an auxiliary
+   window in your browser, warning you when a yellow, red or black condition
+   happen, respectively. Options are separated with a "!" (bang) sign.
 
 It's a good idea to check the hosts.conf.example file that comes with this
 package to make sure you understand the syntax. Also, check the Plugin specific

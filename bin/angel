@@ -1,0 +1,543 @@
+#!/usr/bin/perl -w
+#-----------------------------------------------------------------------------
+#	ANGEL
+#
+#	(C) 1998 by Marco Paganini <paganini@paganini.net>
+#
+#	Angel is a perl script designed to call other perl scripts
+#	(referred to as "plugins" from now on) and generate an HTML file
+#	showing the status of the network services you define.
+#
+#	For more information, please take a look at 
+#	http://www.paganini.net/angel/
+#
+#	Alternatively, if you downloaded the whole package, the entire
+#	documentation should be inside the "docs" subdirectory.
+#
+#	Questions, comments, et al: paganini@paganini.net
+#
+#	Version log:
+#	0.5  - Initial production version
+#
+#	0.6  - Bugfixes
+#
+#	0.6a - Cosmetic stuff on the homepage
+#
+#	0.7  - Marco Paganini <paganini@paganini.net>
+#          Philippe Charnier <charnier@xp11.frmug.org>
+#
+#		   * Changed the body directive to close the javascript
+#		     window when unloading the page. (1998/04/15)
+#		   * New plugin: Check_ping (1998/04/15)
+#		   * Corrected small bug that prevented the use of 
+#		     empty options (1998/04/16).
+#		   * Support for the new format of messages from Check_disk.pl.
+#			 (1998/04/22)
+#		   * Added support for AIX (1998/04/29)
+#		   * Now uses the separate "conf/angel.conf" file to store
+#		     global configurations options (1998/04/29)
+#
+#       Updated May 11 1998 by Norbert E. Gruener
+#         
+#	Contributors:
+#		Philipper Charnier <charnier@xp11.frmug.org>
+#		Adam Soltan <soltan@speech.kth.se>
+#		Norbert E. Gruener <nog@MPA-Garching.MPG.DE>
+#
+#	LEGAL STUFF
+#
+#	The Angel Network Monitor
+#	Copyright (C) 1998 Marco Paganini (paganini@paganini.net)
+#
+#	This program is free software; you can redistribute it and/or
+#	modify it under the terms of the GNU General Public License
+#	as published by the Free Software Foundation; either version 2
+#	of the License, or (at your option) any later version.
+#
+#	This program is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#	
+#	You should have received a copy of the GNU General Public License
+#	along with this program; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+#
+#	The Angel Network Monitor Copyright (C) 1998 Marco Paganini
+#	This program comes with ABSOLUTELY NO WARRANTY; 
+#	This is free software, and you are welcome
+#	to redistribute it under certain conditions; refer to the COPYING
+#	file for details.
+#-----------------------------------------------------------------------------
+
+use Proc::Simple;
+use strict;
+use English;
+
+## Constants
+
+$main::Version = "0.7";
+
+$main::Homedir = ".";
+
+#----------------------------------------------------------------------
+
+##    Some stuff to avoid the dreadful "identifier used only once..." errors
+undef $main::Index_html_header, undef $main::Index_html_footer, undef $main::Index_html_border;
+undef $main::Error_html_footer, undef $main::Error_html_border, undef $main::Error_html_header;
+undef $main::Ledsign_html_header;
+
+my ($hostconf);
+my (%hosthash);
+my (%table_header);
+
+## Get our homedir
+
+$main::Homedir   = get_homedir($0);
+$main::Indexfile = "$main::Homedir/html/index.html";
+$main::Errorfile = "$main::Homedir/html/error.html";
+$main::Ledscript = "$main::Homedir/html/java/ledsign/scripts/angel.led";
+$main::Lockfile  = "$main::Homedir/lock/angel.lock";
+
+$hostconf = "$main::Homedir/conf/hosts.conf";
+
+## Add the plugins directory to the search path
+push @INC,"$main::Homedir/plugins";
+push @INC,"$main::Homedir/conf";
+
+## Check if there's another Angel instance running
+
+die "Another angel instance is running" if (angel_lock());
+
+## Load defaults from external file (at last!)
+require "angel.conf";
+
+
+read_hosts_file($hostconf,\%hosthash);
+
+## Open files
+
+open (INDEX,">$main::Indexfile.$$") || die "angel: Cannot open $main::Indexfile ($OS_ERROR)";
+open (ERROR,">$main::Errorfile.$$") || die "angel: Cannot open $main::Errorfile ($OS_ERROR)";
+
+if ($main::Use_ledsign) {
+	open (LEDSCRIPT,">$main::Ledscript.$$") || die "angel: Cannot open $main::Ledscript ($OS_ERROR)";
+}
+
+gen_html_header(\*INDEX,\*ERROR,\%hosthash,\%table_header);
+gen_html_body(\*INDEX,\*ERROR,\*LEDSCRIPT,\%hosthash,\%table_header);
+gen_html_footer(\*INDEX,\*ERROR);
+
+close(INDEX);
+close(ERROR);
+	
+## Move the files to the original ones
+
+rename("$main::Indexfile.$$",  "$main::Indexfile") || die "angel: Cannot rename $main::Indexfile";
+rename("$main::Errorfile.$$",  "$main::Errorfile") || die "angel: Cannot rename $main::Errorfile";
+
+if ($main::Use_ledsign) {
+	close(LEDSCRIPT);
+	rename("$main::Ledscript.$$", "$main::Ledscript") || die "angel: Cannot rename $main::Ledscript";
+}
+
+unlink $main::Lockfile;
+exit 0;
+
+#-------------------------------------------------------------------------
+sub get_homedir
+{
+	my (@paths) = split("/",$ARG[0]);		## Split dir components
+	pop @paths;							## remove the filename
+
+	## Open the files
+
+	## If we started as "./angel" we assume the
+	## home dir is our parent. Otherwise, pop the
+	## ./bin component from the path and return
+
+	if ($#paths == -1 || $paths[$#paths] eq "./" || $paths[$#paths] eq ".") {
+		return "..";
+	}
+	else {
+		pop @paths;							## remove ./bin
+		join("/",@paths);
+	}
+}
+
+#-------------------------------------------------------------------------
+
+sub read_hosts_file
+{
+	my($hostfile,$hrhosts) = @ARG;
+
+        my($hostname,$module,$cmdline,$label,$options,@tmp);
+
+	## Read hosts.conf file, skipping blank and comment lines
+
+	open (FP, $hostfile) || die "angel: Cannot open $hostfile";
+
+	while (<FP>)
+	{
+		chomp;
+
+		## Check for empty, commented and out of format lines
+		## (remember, options may be blank)
+
+		@tmp = split(':',$ARG);
+		if (!defined($ARG) || m/^\#/o || $#tmp < 3)   { next; }
+
+		($hostname,$module,$cmdline,$label,$options) = split(':',$ARG);
+		
+		## Test if module exists
+		die "angel: Cannot open module $main::Homedir/plugins/$module.pl" unless -e "$main::Homedir/plugins/$module.pl";
+
+		## 'require' the module
+		require "$module.pl";
+
+		## Add to the hash outside this function
+		$hrhosts->{$hostname}{$label} = [ $module,$cmdline,$options ];
+	}
+
+	close FP;
+	return 0;
+}
+
+#-------------------------------------------------------------------------
+sub gen_html_header
+{
+	my($fpindex,$fperror,$hrhosts,$hrheader) = @ARG;
+
+	my($keyhost,$keylabel,$label,$numcols,$numprt,$pct);
+	my($htmltd,$error_host_td,$error_label_td,$error_col_td);
+
+	## TD designator for the index entries
+	$htmltd = ($main::Index_column_width == -1) ? "<td>" : "<td width=\"$main::Index_column_width\">";
+
+	## TD designator for the host part of error entries
+	$error_host_td  = ($main::Error_host_width   == -1) ? "<td>" : "<td width=\"$main::Error_host_width\">";
+	$error_label_td = ($main::Error_label_width  == -1) ? "<td>" : "<td width=\"$main::Error_label_width\">";
+	$error_col_td   = ($main::Error_column_width == -1) ? "<td>" : "<td width=\"$main::Error_column_width\">";
+
+	## Index and Error Headers
+
+	print $fpindex $main::Index_html_header;
+	print $fperror $main::Error_html_header;
+
+	## Should we use ledsign?
+	print $fpindex $main::Ledsign_html_header if ($main::Use_ledsign);
+
+	## Localtime
+	print $fpindex "<p>Last updated: " . localtime() . "<p>\n";
+	print $fperror "<p>Last updated: " . localtime() . "<p>\n";
+
+	## Index and Error Tables
+
+	print $fpindex "<table border=${main::Index_html_border}>\n";
+	print $fpindex "<tr>\n";
+	print $fpindex "${htmltd}<br></td>\n";
+
+	print $fperror "<table border=${main::Error_html_border}>\n";
+	print $fperror "<tr>\n";
+	print $fperror "${error_host_td}<center><b>Hostname</b></center></td>\n";
+	print $fperror "${error_label_td}<center><b>Service</b></center></td>\n";
+	print $fperror "${error_col_td}<b>Error message</b></td>\n";
+
+	## We now create all table headers.
+	## hrhosts is a reference to a hash of hashes
+	## The first hash is the hostname, and the second
+	## the label
+	
+	$numcols = 0;
+
+	## Get all labels from keyhost{host}
+
+	foreach $keyhost (sort keys %$hrhosts)
+	{
+		foreach $keylabel (keys %{$hrhosts->{$keyhost}})
+		{
+			if (!exists($hrheader->{$keylabel})) {
+				$hrheader->{$keylabel} = 1;			## Set
+				$numcols++;							## One more unique column
+			}
+		}
+	}
+
+	## Print the table
+
+	foreach $keylabel (sort keys %$hrheader)
+	{
+		print $fpindex "${htmltd}<center>$keylabel</center></td>\n";	## Print column
+	}
+}
+
+#-------------------------------------------------------------------------
+
+sub gen_html_body
+{
+	my($fpindex,$fperror,$fpscript,$hrhosts,$hrheader) = @ARG;
+
+	my($keyhost,$keylabel,$label,$numcols,$numprt,$pct,$status,$message);
+	my($funcname,$funcparms,$image,$ledcolor,$ledfirst);
+	my($htmltd,$error_host_td,$error_label_td,$error_col_td,$htmlvalue);
+	my($alertmsg,$funcopts);
+
+	## TD designator for the index entries
+	$htmltd = ($main::Index_column_width == -1) ? "<td>" : "<td width=\"$main::Index_column_width\">";
+
+	## TD designator for the host part of error entries
+	$error_host_td  = ($main::Error_host_width   == -1) ? "<td>" : "<td width=\"$main::Error_host_width\">";
+	$error_label_td = ($main::Error_label_width  == -1) ? "<td>" : "<td width=\"$main::Error_label_width\">";
+	$error_col_td   = ($main::Error_column_width == -1) ? "<td>" : "<td width=\"$main::Error_column_width\">";
+
+	## Get all labels from keyhost{host}
+
+	$alertmsg = "";
+
+	foreach $keyhost (sort keys %$hrhosts)
+	{
+		print $fpindex "<tr>\n";
+		print $fpindex "${htmltd}<b>$keyhost</b></td>\n";
+
+		## If there's a label header matching this host, print
+		
+		foreach $keylabel (sort keys %$hrheader)
+		{
+			## Print if there's a match for this line
+			if (exists($hrhosts->{$keyhost}{$keylabel}))
+			{
+				## We now call the appropriate function
+			
+				$funcname  = $hrhosts->{$keyhost}{$keylabel}[0];
+				$funcparms = $hrhosts->{$keyhost}{$keylabel}[1];
+				$funcopts  = lc($hrhosts->{$keyhost}{$keylabel}[2]);
+
+				#eval {
+				#	local $SIG{ALRM} = sub { die "timeout" };
+				#	alarm $main::Plugin_timeout;
+
+				no strict 'refs';
+				($status,$message,$htmlvalue) = &$funcname($funcparms);
+				use strict 'refs';
+
+				#	alarm 0;
+				#};
+				#if ($@ =~ /timeout/)
+				#{
+				#	## Did we timeout?
+				#	$status = -1;
+				#	$message = "Plugin timed out";
+				#}
+
+				## If htmlvalue is defined, we use it. Otherwise, 
+				## our defaults are green/yellow/red/black
+
+				if (defined($htmlvalue)) {
+					$image = $htmlvalue;
+				}
+				else
+				{
+					##
+					##	Here we print the error messages. We also append
+					##	to the "alertmsg" variable if the option asks
+					##	for "alertred","alertyellow" or "alertblack"
+					##
+
+					if ($status == 0) {
+						$image = "<img src=\"pics/green.gif\" alt=\".\">";
+					}
+					elsif ($status == 1) {
+						$image = "<a href=\"error.html\"><img src=\"pics/yellow.gif\" alt=\"$message\" border=0></a>";
+						$alertmsg .= "<br><font size=\'-1\' color=\'#FFFF00\'><b>$keyhost/$keylabel [warning]: $message</b></font>" if ($funcopts =~ m/alertyellow/o);
+					}
+					elsif ($status == 2) {
+						$image = "<a href=\"error.html\"><img src=\"pics/red.gif\" alt=\"$message\" border=0></a>";
+						$alertmsg .= "<br><font size=\'-1\' color=\'#FF0000\'><b>$keyhost/$keylabel [error]: $message</b></font>" if ($funcopts =~ m/alertred/o);
+					}
+					else
+					{
+						$image = "<a href=\"error.html\"><img src=\"pics/black.gif\" alt=\"$message\" border=0></a>";
+						$alertmsg .= "<br><font size=\'-1\' color=\'#A0A0A0\'><b>$keyhost/$keylabel [config error]: $message</b></font>" if ($funcopts =~ m/alertblack/o);
+					}
+				}
+
+				## Print the index entry
+				print $fpindex "${htmltd}<center>$image</center></td>\n";
+
+				## Print the error entry (if any)
+				if ($status != 0)
+				{
+					print $fperror "<tr>\n";
+					my (@a) = split('\n', $message);
+					my ($first) = 1;
+
+					while ($a[0])
+					{
+						if ($first == 1)
+						{
+							print $fperror "${error_host_td}<center>$keyhost</center></td>\n";
+						}
+						else
+						{
+							print $fperror "${error_host_td}</td>\n";
+						}
+
+						if ($first == 1)
+						{
+							print $fperror "${error_label_td}<center>$keylabel</center></td>\n";
+						}
+						else
+						{
+							print $fperror "${error_label_td}</td>\n";
+						}
+
+						print $fperror "${error_col_td}$a[0]</td>\n";
+						shift @a;
+						print $fperror "<tr>\n";
+						$first++;
+					}
+				}
+
+				## Print the ledsign info if we choose to use it
+				
+				if ($main::Use_ledsign) 
+				{
+					if (!defined($ledfirst))
+					{
+						$ledfirst = 0;
+
+						## First time, print headers
+
+						print $fpscript "Do\n";
+						print $fpscript "  ScrollUp delay=50 center=true text=\\gANGEL V$main::Version\n";
+						print $fpscript "  Sleep delay=1500\n";
+ 						print $fpscript "  ScrollUp delay=50 center=true text=\\b(C) 1998 by\n";
+ 						print $fpscript "  Sleep delay=1000\n";
+ 						print $fpscript "  ScrollUp delay=50 center=true text=\\bMarco Paganini\n";
+ 						print $fpscript "  Sleep delay=1500\n";
+ 						print $fpscript "  ScrollUp delay=50 center=true text=\\bpaganini\@paganini.net\n";
+ 						print $fpscript "  Sleep delay=2000\n\n";
+					}
+
+					if ($status != 0)
+					{
+						## Choose color
+
+						if    ($status == 2)    { $ledcolor = "\\r" }
+						elsif ($status == 1)    { $ledcolor = "\\y" }
+						else                    { $ledcolor = "\\b" }
+
+						print $fpscript "  ScrollLeft delay=30 startspace=1 endspace=80 ";
+						print $fpscript "text=${ledcolor}\[$keyhost/$keylabel]:$message\n";
+					}
+				}
+			}
+			else
+			{
+				print $fpindex "${htmltd}<br></td>";
+			}
+		}
+	}
+
+	print $fpindex "</table>\n";
+	print $fperror "</table>\n";
+
+	if ($main::Use_ledsign) {
+		print $fpscript "Repeat times=5\n";
+	}
+
+	## Javascript alert if "alertmsg" is not null
+
+	if ($alertmsg ne "")
+	{
+		print $fpindex "<script>\n";
+		print $fpindex "<!-- Hide from older browsers\n";
+		print $fpindex "var wnd;\n";
+		print $fpindex "wnd = window.open(\"\",\"alert\",\"width=400,height=200,scrollbars=yes,statusbar=no,toolbar=no\");\n";
+		print $fpindex "wnd.document.write(\"<title>ANGEL CONSOLE</title>\");\n";
+		print $fpindex "wnd.document.write(\"<body bgcolor='#000000' text='#FFFFFF'>\");\n";
+
+		print $fpindex "wnd.document.write(\"<center><b>" . localtime() . "</b></center>\");\n";
+		print $fpindex "wnd.document.write(\"$alertmsg\");\n";
+		print $fpindex "wnd.document.write(\"</body>\");\n";
+		print $fpindex "//-->\n";
+		print $fpindex "</script>\n";
+	}
+}
+
+#-------------------------------------------------------------------------
+
+sub gen_html_footer
+{
+	my($fpindex,$fperror) = @ARG;
+
+	print $fpindex $main::Index_html_footer;
+	print $fperror $main::Error_html_footer;
+	return 0;
+}
+
+#-------------------------------------------------------------------------
+
+sub angel_lock
+{
+	if ( -e $main::Lockfile && ! -z $main::Lockfile )
+	{
+		open(LOCKFILE, "$main::Lockfile") || die "Error opening $main::Lockfile";
+		my ($pidno) = <LOCKFILE>;
+		close LOCKFILE;
+
+		return 1 if (kill 0 => $pidno);
+	}
+
+	## Lock
+
+	open(LOCKFILE, ">$main::Lockfile") || die "Error creating $main::Lockfile";
+	print LOCKFILE "$$";
+	close LOCKFILE;
+	return 0;
+}
+
+#-------------------------------------------------------------------------
+#	Support subroutines
+#-------------------------------------------------------------------------
+
+sub timeexec
+{
+	my($tries,$timeout,$cmd) = @ARG;
+
+	my ($myproc,@cmdoutput);
+	my ($tempfile) = "/tmp/timeexec.$$";
+
+	$myproc = Proc::Simple->new();
+	$myproc->start("$cmd >$tempfile 2>&1");
+
+	while ($tries)
+	{
+		last if (! $myproc->poll());
+		sleep($timeout);
+		$tries--;
+	}
+
+	## We timed out...
+	if ($tries == 0)
+	{
+		$myproc->kill();
+		unlink($tempfile);
+		return(-1,());
+	}
+
+	## Load the tempfile into out @cmdoutput array
+
+	open (CDTEMP,"$tempfile") || return (-1, ());
+
+	@cmdoutput = ();
+
+	while (<CDTEMP>)
+	{
+		push(@cmdoutput,$ARG);
+	}
+
+	close(CDTEMP);
+	unlink($tempfile);
+	return(0,@cmdoutput);
+}

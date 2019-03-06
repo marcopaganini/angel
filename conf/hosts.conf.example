@@ -1,0 +1,33 @@
+#
+#	ANGEL hosts configuration file
+#
+
+# Make sure the mail gateway is working...
+
+mailgate:Check_tcp:email!smtp:SMTP:alertred!alertyellow!alertblack
+
+# Main host must be fully operational
+# SMTP and ftp must be ok
+# Alert on yellow, black (plugin error) and red conditions
+
+mainhost:Check_tcp:mainhost!smtp:SMTP:alertred!alertyellow!alertblack
+mainhost:Check_tcp:mainhost!ftp:FTP:alertred!alertyellow!alertblack
+
+# Oraclehost must have the "listener service" working
+
+Oraclehost:Check_tcp:Oraclehost!listener:Listener:alertred!alertyellow!alertblack
+
+# Otherhost is an HPUX box. Ignore the /cdrom filesystem and warn
+# if /u1 is over 100% (yes, HPUX allows up to 110%). Warn yellow if
+# /u2 is over 97% and red if over 100%
+
+otherhost:Check_disk:otherhost!hpux10!/cdrom 999 999!/u1 100 100!/u2 97 100:Disk:alertred!alertyellow!alertblack
+
+# Check load with the default values (>2 = yellow, >3 = red)
+
+otherhost:Check_load:otherhost:Load:alertred!alertyellow!alertblack
+
+# Check the http (web) port
+# (please note that we used a numeric value for the port parameter)
+
+otherhost:Check_tcp:otherhost!80:Http:alertred!alertyellow!alertblack

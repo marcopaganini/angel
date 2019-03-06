@@ -1,4 +1,4 @@
-# Check Disk Plugin
+# Check_disk Plugin
 
 ## Description
 
@@ -21,26 +21,33 @@ hostname!ostype!fs spacespec!fs spacespec...
 
 Where:
 
-* **hostname**: The host name. The system must be able to locate this box by
-  this name, or it  won't work.
+* **hostname**
 
-* **ostype**: The operating system type. Currently supported types are
-  linux,sco32,sco50 and hpux10.
+   The host name. The system must be able to locate this box by
+   this name, or it  won't work.
 
-* **fs**: The desired mount point. Angel will check this mountpoint and report
-  any "out of order" space conditions on it. These conditions are calculated
-  based on the "spacespec" parameter below.  You may also use the
-  meta-filesystem "default". This will change the default values for all
-  filesystems. You may change the default and override these values for
-  specific filesystems.
+* **ostype**
 
-* **spacespec**: This defines how the plugin should interpret the various space
-  conditions on the specified mountpoint. Its format is `pct_yellow pct_red`.
-  Every filesystem with more than `pct_yellow%` of used space will be reported
-  as "yellow". Filesystems with more than `pct_red%` will be flagged as "red".
+   The operating system type. Currently supported types are
+   linux,sco32,sco50 and hpux10.
 
-  It may be a good idea to use "999 999" for cdrom filesystems. Since there
-  won't ever be a 999% filesystem, it will always report as "green".
+* **fs**
+
+   The desired mount point. Angel will check this mountpoint and report
+   any "out of order" space conditions on it. These conditions are calculated
+   based on the "spacespec" parameter below.  You may also use the
+   meta-filesystem "default". This will change the default values for all
+   filesystems. You may change the default and override these values for
+   specific filesystems.
+
+* **spacespec**
+   This defines how the plugin should interpret the various space
+   conditions on the specified mountpoint. Its format is `pct_yellow pct_red`.
+   Every filesystem with more than `pct_yellow%` of used space will be reported
+   as "yellow". Filesystems with more than `pct_red%` will be flagged as "red".
+
+   It may be a good idea to use "999 999" for cdrom filesystems. Since there
+   won't ever be a 999% filesystem, it will always report as "green".
 
 ## Examples
 

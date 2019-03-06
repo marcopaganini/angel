@@ -1,6 +1,14 @@
 # The Angel Network Monitor
 © Mar/1998 by Marco Paganini (paganini@paganini.net)
 
+## Before anything else, please read this
+
+This is **very outdated** software, writen two decades ago to scratch an itch. It's
+not supported and pretty much orphaned. I decided to make it available on
+github as there's some people who are still using it, but I have no plans to
+provide any updates or create new versions. Twenty plus years is a long time in
+this industry and I'd be surprised if it works out of the box at all.
+
 ## Introduction
 
 Angel is a simple yet useful tool to monitor the services on your network.
@@ -157,8 +165,7 @@ Name of the host to be checked. This host must be locatable from the computer wh
 
 #### plugin
 The plugin name. Each plugin does a different thing and require different
-`plugin_options` (see next definition). Currently (v.0.5) the only defined
-plugins are `Check_tcp`, `Check_disk`, and `Check_load`.
+`plugin_options` (see next definition).
 
 #### plugin_options
 
@@ -193,13 +200,10 @@ documentation below to customize Angel to your needs.
 This section discusses the basic options for each plugin. This is where you
 should expect to find the `plugin_options` for each plugin.
 
-* [Check_tcp](docs/check_tcp.md) - Checks for a TCP connection on a given port.
-
 * [Check_disk](docs/check_disk.md) - Checks for low diskspace conditions.
-
 * [Check_load](docs/check_load.md) - Checks for high system load conditions.
-
 * [Check_ping](docs/check_ping.md) - Checks roundtrip times.
+* [Check_tcp](docs/check_tcp.md) - Checks for a TCP connection on a given port.
 
 ## Writing your own plugins
 

@@ -41,10 +41,11 @@ Where:
    specific filesystems.
 
 * **spacespec**
-   This defines how the plugin should interpret the various space
-   conditions on the specified mountpoint. Its format is `pct_yellow pct_red`.
-   Every filesystem with more than `pct_yellow%` of used space will be reported
-   as "yellow". Filesystems with more than `pct_red%` will be flagged as "red".
+
+   Defines how the plugin should interpret the various space conditions on the
+   specified mountpoint. Its format is `pct_yellow pct_red`.  Every filesystem
+   with more than `pct_yellow%` of used space will be reported as "yellow".
+   Filesystems with more than `pct_red%` will be flagged as "red".
 
    It may be a good idea to use "999 999" for cdrom filesystems. Since there
    won't ever be a 999% filesystem, it will always report as "green".

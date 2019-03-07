@@ -207,6 +207,7 @@ should expect to find the `plugin_options` for each plugin.
 * [Check_disk](docs/check_disk.md) - Checks for low diskspace conditions.
 * [Check_load](docs/check_load.md) - Checks for high system load conditions.
 * [Check_ping](docs/check_ping.md) - Checks roundtrip times.
+* [Check_smbdisk](docs/check_smbdisk.md) - Checks SMB disk shares.
 * [Check_tcp](docs/check_tcp.md) - Checks for a TCP connection on a given port.
 
 ## Writing your own plugins

@@ -29,7 +29,7 @@
 #		   * Changed the body directive to close the javascript
 #		     window when unloading the page. (1998/04/15)
 #		   * New plugin: Check_ping (1998/04/15)
-#		   * Corrected small bug that prevented the use of 
+#		   * Corrected small bug that prevented the use of
 #		     empty options (1998/04/16).
 #		   * Support for the new format of messages from Check_disk.pl.
 #			 (1998/04/22)
@@ -38,11 +38,34 @@
 #		     global configurations options (1998/04/29)
 #
 #       Updated May 11 1998 by Norbert E. Gruener
-#         
+#
+#	0.7.1
+#       Modified February 11 2002 by Matt A. Callihan
+#		Removed annoying popup window on errors. 
+#		Updated html to v4.01.
+#		Created installation script which will also:
+#			 Install Proc::Simple using CPAN.
+#                        Add the needed entries to httpd.conf.
+#			 Add an entry to the crontab to run every twenty minutes.
+#			 Reload crond and graceful httpd.
+#		Modified installation instructions.
+#		Set status 0 to use $message instead of a period in the alt tag.
+#	0.7.2
+#       Modified February 17 2002 by Matt A. Callihan
+#		Set unreturned status to use red instead of black.
+#		Set black as fill image using alt text OFF.
+#
+#	0.7.3
+#	Modified October 25 2002 by Matt A. Callihan
+#	Changed hrheader sorting to place PING in the first column.
+#	Fixed Check_Ping.pl to work with iputils-ss020124 and beyond.
+#
+#
 #	Contributors:
 #		Philipper Charnier <charnier@xp11.frmug.org>
 #		Adam Soltan <soltan@speech.kth.se>
 #		Norbert E. Gruener <nog@MPA-Garching.MPG.DE>
+#		Matt A. Callihan <SpamFree@NoMail.com>
 #
 #	LEGAL STUFF
 #
@@ -76,7 +99,7 @@ use English;
 
 ## Constants
 
-$main::Version = "0.7";
+$main::Version = "0.7.3";
 
 $main::Homedir = ".";
 
@@ -100,7 +123,6 @@ $main::Ledscript = "$main::Homedir/html/java/ledsign/scripts/angel.led";
 $main::Lockfile  = "$main::Homedir/lock/angel.lock";
 
 $hostconf = "$main::Homedir/conf/hosts.conf";
-
 ## Add the plugins directory to the search path
 push @INC,"$main::Homedir/plugins";
 push @INC,"$main::Homedir/conf";
@@ -175,20 +197,20 @@ sub read_hosts_file
 
 	## Read hosts.conf file, skipping blank and comment lines
 
-	open (FP, $hostfile) || die "angel: Cannot open $hostfile";
+	open (FP,$hostfile) || die "angel: Cannot open $hostfile";
 
 	while (<FP>)
 	{
 		chomp;
 
 		## Check for empty, commented and out of format lines
-		## (remember, options may be blank)
+		## (remember, options may be blank
 
 		@tmp = split(':',$ARG);
 		if (!defined($ARG) || m/^\#/o || $#tmp < 3)   { next; }
 
 		($hostname,$module,$cmdline,$label,$options) = split(':',$ARG);
-		
+
 		## Test if module exists
 		die "angel: Cannot open module $main::Homedir/plugins/$module.pl" unless -e "$main::Homedir/plugins/$module.pl";
 
@@ -216,7 +238,7 @@ sub gen_html_header
 
 	## TD designator for the host part of error entries
 	$error_host_td  = ($main::Error_host_width   == -1) ? "<td>" : "<td width=\"$main::Error_host_width\">";
-	$error_label_td = ($main::Error_label_width  == -1) ? "<td>" : "<td width=\"$main::Error_label_width\">";
+        $error_label_td = ($main::Error_label_width  == -1) ? "<td>" : "<td width=\"$main::Error_label_width\">";
 	$error_col_td   = ($main::Error_column_width == -1) ? "<td>" : "<td width=\"$main::Error_column_width\">";
 
 	## Index and Error Headers
@@ -228,19 +250,18 @@ sub gen_html_header
 	print $fpindex $main::Ledsign_html_header if ($main::Use_ledsign);
 
 	## Localtime
-	print $fpindex "<p>Last updated: " . localtime() . "<p>\n";
-	print $fperror "<p>Last updated: " . localtime() . "<p>\n";
+	print $fpindex "<p>Last updated: " . localtime() . "</p>\n";
+	print $fperror "<p>Last updated: " . localtime() . "</p>\n";
 
 	## Index and Error Tables
 
 	print $fpindex "<table border=${main::Index_html_border}>\n";
-	print $fpindex "<tr>\n";
-	print $fpindex "${htmltd}<br></td>\n";
-
+	print $fpindex "<tr align=center>\n";
+	print $fpindex "${htmltd}&nbsp;</td>\n";
 	print $fperror "<table border=${main::Error_html_border}>\n";
-	print $fperror "<tr>\n";
-	print $fperror "${error_host_td}<center><b>Hostname</b></center></td>\n";
-	print $fperror "${error_label_td}<center><b>Service</b></center></td>\n";
+	print $fperror "<tr align=center>\n";
+	print $fperror "${error_host_td}<b>Hostname</b></td>\n";
+	print $fperror "${error_label_td}<b>Service</b></td>\n";
 	print $fperror "${error_col_td}<b>Error message</b></td>\n";
 
 	## We now create all table headers.
@@ -264,10 +285,18 @@ sub gen_html_header
 	}
 
 	## Print the table
+	# regular string sort, but "PING" should be first
+	sub PING_first {
+	        return -1       if $a eq "PING";
+	        return  1       if $b eq "PING";
 
-	foreach $keylabel (sort keys %$hrheader)
+	        return $a cmp $b;
+	}
+ 
+	foreach my $keylabel (sort PING_first keys %$hrheader )
 	{
-		print $fpindex "${htmltd}<center>$keylabel</center></td>\n";	## Print column
+		print $fpindex "${htmltd}$keylabel</td>\n";  	## Print column
+
 	}
 }
 
@@ -300,8 +329,8 @@ sub gen_html_body
 		print $fpindex "${htmltd}<b>$keyhost</b></td>\n";
 
 		## If there's a label header matching this host, print
-		
-		foreach $keylabel (sort keys %$hrheader)
+
+		foreach $keylabel (sort PING_first keys %$hrheader)
 		{
 			## Print if there's a match for this line
 			if (exists($hrhosts->{$keyhost}{$keylabel}))
@@ -344,30 +373,27 @@ sub gen_html_body
 					##
 
 					if ($status == 0) {
-						$image = "<img src=\"pics/green.gif\" alt=\".\">";
+						$image = "<img src=\"pics/green.gif\" alt=\"$message\">";
 					}
 					elsif ($status == 1) {
-						$image = "<a href=\"error.html\"><img src=\"pics/yellow.gif\" alt=\"$message\" border=0></a>";
-						$alertmsg .= "<br><font size=\'-1\' color=\'#FFFF00\'><b>$keyhost/$keylabel [warning]: $message</b></font>" if ($funcopts =~ m/alertyellow/o);
+						$image = "<a href=\"error.html\"><img src=\"pics/yellow.gif\" alt=\"$message\"></a>";
 					}
 					elsif ($status == 2) {
-						$image = "<a href=\"error.html\"><img src=\"pics/red.gif\" alt=\"$message\" border=0></a>";
-						$alertmsg .= "<br><font size=\'-1\' color=\'#FF0000\'><b>$keyhost/$keylabel [error]: $message</b></font>" if ($funcopts =~ m/alertred/o);
+						$image = "<a href=\"error.html\"><img src=\"pics/red.gif\" alt=\"$message\"></a>";
 					}
 					else
 					{
-						$image = "<a href=\"error.html\"><img src=\"pics/black.gif\" alt=\"$message\" border=0></a>";
-						$alertmsg .= "<br><font size=\'-1\' color=\'#A0A0A0\'><b>$keyhost/$keylabel [config error]: $message</b></font>" if ($funcopts =~ m/alertblack/o);
+						$image = "<a href=\"error.html\"><img src=\"pics/red.gif\" alt=\"$message\"></a>";
 					}
 				}
 
 				## Print the index entry
-				print $fpindex "${htmltd}<center>$image</center></td>\n";
+				print $fpindex "${htmltd}$image</td>\n";
 
 				## Print the error entry (if any)
 				if ($status != 0)
 				{
-					print $fperror "<tr>\n";
+					print $fperror "<tr align=center>\n";
 					my (@a) = split('\n', $message);
 					my ($first) = 1;
 
@@ -375,7 +401,7 @@ sub gen_html_body
 					{
 						if ($first == 1)
 						{
-							print $fperror "${error_host_td}<center>$keyhost</center></td>\n";
+							print $fperror "${error_host_td}$keyhost</td>\n";
 						}
 						else
 						{
@@ -384,7 +410,7 @@ sub gen_html_body
 
 						if ($first == 1)
 						{
-							print $fperror "${error_label_td}<center>$keylabel</center></td>\n";
+							print $fperror "${error_label_td}$keylabel</td>\n";
 						}
 						else
 						{
@@ -393,7 +419,7 @@ sub gen_html_body
 
 						print $fperror "${error_col_td}$a[0]</td>\n";
 						shift @a;
-						print $fperror "<tr>\n";
+						print $fperror "</tr>\n";
 						$first++;
 					}
 				}
@@ -425,7 +451,7 @@ sub gen_html_body
 
 						if    ($status == 2)    { $ledcolor = "\\r" }
 						elsif ($status == 1)    { $ledcolor = "\\y" }
-						else                    { $ledcolor = "\\b" }
+						else                    { $ledcolor = "\\r" }
 
 						print $fpscript "  ScrollLeft delay=30 startspace=1 endspace=80 ";
 						print $fpscript "text=${ledcolor}\[$keyhost/$keylabel]:$message\n";
@@ -434,35 +460,16 @@ sub gen_html_body
 			}
 			else
 			{
-				print $fpindex "${htmltd}<br></td>";
+				print $fpindex "${htmltd}<img src=\"pics/black.gif\" alt=\"OFF\"></td>";
 			}
 		}
 	}
-
 	print $fpindex "</table>\n";
-	print $fperror "</table>\n";
-
+        print $fperror "</table>\n";
 	if ($main::Use_ledsign) {
 		print $fpscript "Repeat times=5\n";
 	}
 
-	## Javascript alert if "alertmsg" is not null
-
-	if ($alertmsg ne "")
-	{
-		print $fpindex "<script>\n";
-		print $fpindex "<!-- Hide from older browsers\n";
-		print $fpindex "var wnd;\n";
-		print $fpindex "wnd = window.open(\"\",\"alert\",\"width=400,height=200,scrollbars=yes,statusbar=no,toolbar=no\");\n";
-		print $fpindex "wnd.document.write(\"<title>ANGEL CONSOLE</title>\");\n";
-		print $fpindex "wnd.document.write(\"<body bgcolor='#000000' text='#FFFFFF'>\");\n";
-
-		print $fpindex "wnd.document.write(\"<center><b>" . localtime() . "</b></center>\");\n";
-		print $fpindex "wnd.document.write(\"$alertmsg\");\n";
-		print $fpindex "wnd.document.write(\"</body>\");\n";
-		print $fpindex "//-->\n";
-		print $fpindex "</script>\n";
-	}
 }
 
 #-------------------------------------------------------------------------

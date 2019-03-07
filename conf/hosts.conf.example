@@ -1,33 +1,69 @@
 #
 #	ANGEL hosts configuration file
 #
-
-# Make sure the mail gateway is working...
-
-mailgate:Check_tcp:email!smtp:SMTP:alertred!alertyellow!alertblack
-
-# Main host must be fully operational
-# SMTP and ftp must be ok
-# Alert on yellow, black (plugin error) and red conditions
-
-mainhost:Check_tcp:mainhost!smtp:SMTP:alertred!alertyellow!alertblack
-mainhost:Check_tcp:mainhost!ftp:FTP:alertred!alertyellow!alertblack
-
+#Check Pings
+#
+#hostname:Check_ping:hostaddress!ICMP:LABEL:ttl_yellow!ttl_red!loss_yellow!loss_red
+#
+# NOTE:YOU MUST KEEP THE SERVERS IN THE SAME ORDER AS THE FIRST SECTION?
+#
+darkstar:Check_ping:127.0.0.1!ICMP:PING:1!2!1!2
+lightstar:Check_ping:192.168.0.2!ICMP:PING:1!2!1!2
+gateway:Check_ping:192.168.0.1!ICMP:PING:5!10!1!2
+mail.comcast.net:Check_ping:mail.comcast.net!ICMP:PING:20!30!1!2
+pop.sbcglobal.net:Check_ping:mail.swbell.net!ICMP:PING:20!30!1!2
+mail.sbcglobal.net:Check_ping:mail.swbell.net!ICMP:PING:20!30!1!2
+smtp.comcast.net:Check_ping:smtp.comcast.net!ICMP:PING:20!30!1!2
+www.pogo.com:Check_ping:www.pogo.com!ICMP:PING:20!30!1!2
+#
+# Check mail
+#
+#hostname:Check_tcp:hostaddress!PORT:LABEL:alertred!alertyellow!alertblack
+#
+#SMTP
+#
+darkstar:Check_tcp:127.0.0.1!25:SMTP:alertred!alertyellow!alertblack
+mail.sbcglobal.net:Check_tcp:mail.swbell.net!25:SMTP:alertred!alertyellow!alertblack
+smtp.comcast.net:Check_tcp:smtp.comcast.net!25:SMTP:alertred!alertyellow!alertblack
+#
+#POP3
+#
+darkstar:Check_tcp:127.0.0.1!110:POP3:alertred!alertyellow!alertblack
+mail.comcast.net:Check_tcp:mail.comcast.net!110:POP3:alertred!alertyellow!alertblack
+pop.sbcglobal.net:Check_tcp:mail.swbell.net!110:POP3:alertred!alertyellow!alertblack
+#
+# Check FTP
+#
+darkstar:Check_tcp:127.0.0.1!ftp:FTP:alertred!alertyellow!alertblack
+#
+# Check HTTP
+#
+darkstar:Check_tcp:127.0.0.1!http:HTTP:alertred!alertyellow!alertblack
+www.pogo.com:Check_tcp:www.pogo.com!http:HTTP:alertred!alertyellow!alertblack
+#
+# Check SSH
+#
+darkstar:Check_tcp:127.0.0.1!ssh:SSH:alertred!alertyellow!alertblack
+#
+# Check DNS
+#
+darkstar:Check_tcp:127.0.0.1!53:DNS:alertred!alertyellow!alertblack
+#
+#
+#
+# More Howtos
+#
+#
 # Oraclehost must have the "listener service" working
 
-Oraclehost:Check_tcp:Oraclehost!listener:Listener:alertred!alertyellow!alertblack
+# Oraclehost:Check_tcp:Oraclehost!listener:Listener:alertred!alertyellow!alertblack
 
 # Otherhost is an HPUX box. Ignore the /cdrom filesystem and warn
 # if /u1 is over 100% (yes, HPUX allows up to 110%). Warn yellow if
 # /u2 is over 97% and red if over 100%
 
-otherhost:Check_disk:otherhost!hpux10!/cdrom 999 999!/u1 100 100!/u2 97 100:Disk:alertred!alertyellow!alertblack
+#otherhost:Check_disk:otherhost!hpux10!/cdrom 999 999!/u1 100 100!/u2 97 100:Disk:alertred!alertyellow!alertblack
 
 # Check load with the default values (>2 = yellow, >3 = red)
 
-otherhost:Check_load:otherhost:Load:alertred!alertyellow!alertblack
-
-# Check the http (web) port
-# (please note that we used a numeric value for the port parameter)
-
-otherhost:Check_tcp:otherhost!80:Http:alertred!alertyellow!alertblack
+#hostname:Check_load:hostaddress:LOAD:2!3

@@ -5,10 +5,16 @@
 #
 #	Parameters:
 #
-#		hostname!ttl_yellow!ttl_red!loss_yellow!loss_red
+#		hostname:Check_ping:hostaddress!PORT:LABEL:ttl_yellow!ttl_red!loss_yellow!loss_red
 #
 #		'hostname'
 #			The host name
+#
+#		'PORT'
+#			The port to connect to usually ICMP
+#
+#		'LABEL'
+#			The label to use in the table usually PING
 #
 #		'ttl_yellow' and 'ttl_red'
 #			The yellow and red thresholds for the roundtrip time,
@@ -20,7 +26,7 @@
 #
 #	Example parameters:
 #
-#		titan!100!200!5!15
+#		LABEL:100!200!5!15
 #
 #		Roundtrips above 100 (usually ms, depending on your
 #		ping command output) will be flagged as yellow. Above
@@ -51,6 +57,12 @@
 #	This is free software, and you are welcome
 #	to redistribute it under certain conditions; refer to the COPYING
 #	file for details.
+#
+#	0.7.3
+#	Modified October 25 2002 by Matt A. Callihan
+#	Fixed Check_Ping.pl to work with iputils-ss020124 and beyond.
+#
+#
 #------------------------------------------------------------------------------
 
 require 5.002;
@@ -63,7 +75,7 @@ sub Check_ping
 	##
 
 	my($Default_tries)       = 10;	## 10 tries
-	my($Default_timeout)     = 3;	## of 3 seconds each...
+	my($Default_timeout)     = 10;	## of 10 seconds each...
 	
 	my($Default_ttl_yellow)  = 100;	## Yellow condition at this percent...
 	my($Default_ttl_red)     = 200;	## Red condition at this...
@@ -140,7 +152,6 @@ sub Check_ping
 	$rcmdline = sprintf($Default_ping_cmd, $hostname);
 	
 	($ret,@output) = timeexec($Default_tries,$Default_timeout,$rcmdline);
-
 	if ($ret != 0)
 	{
 		return(-1,"Probable command timeout");
@@ -155,7 +166,10 @@ sub Check_ping
 
 		if (!defined($loss))
 		{
-			($loss) = ($param =~ m/([0-9]*?)\% packet loss/i);
+		        # Deal with both ping format outputs
+		        # 3 packets transmitted, 3 received, 0% loss, time 2023ms
+		        # 3 packets transmitted, 3 packets received, 0% packet loss
+			($loss) = ($param =~ m/received, (\d+)\% (?:packet )?loss/i);
 		}
 
 		if (!defined($avg))
@@ -163,10 +177,8 @@ sub Check_ping
 			($avg)  = ($param =~ m#[0-9\.]+?/([0-9\.]+?)/[0-9\.]+#i);
 		}
 	}
-
 	## Sanity check 
-
-	if (!defined($loss) || !defined($avg))
+        if (!defined($loss) || !defined($avg))
 	{
 		return(-1,"Cannot determine loss or average ttl time");
 	}
